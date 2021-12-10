@@ -1,139 +1,124 @@
+#include "main.h"
+
 #include <Arduino.h>
 #include <SD.h>
 
-const int charge_d2 = 2;               // capacitor charge on/off
-const int discharge_d4 = 4;            // capacitor discharge on/off
-const int L1_ON_d6 = 6;                // L1 on/L2 off on/off
-const int capacitor_voltage_a7 = A7;    // capacitor voltage measured at gpio a7
-const int sensor_voltage_a5 = 5;       // sensor voltage aplified by 7
-const int pb_d8 = 8;                   // skip switch
-const float counts_to_volts = 0.0032;  // 0.00459; ADC Vref 3.3V
-const float vmax = 3.0;                // This is the maximum capacitor voltage desired
+// Pins
+const uint8_t kPinChargeDischarge = 2;      // Pin controlling relay connecting Cap to battery or coils
+const uint8_t kPinCoilSwitch = 6;           // Pin controlling relay connecting coil 1 or 2
+const uint8_t kPinCapacitor = A7;           // Pin measuring capacitor voltage
+const uint8_t kPinSensingCoil = A5;         // Pin measuring sensing coil voltage
 
-const float discharge_time_ms = 1000;
-const float sensor_time_delay_us = 1200;  // time to wait before measuring sensor volts
-const int sensor_interval_us = 1;         // was sensorTime_ms/sensorArrayLength
+// Settings
+const float kCountsToVolts = 0.0032;        // Constant for translating ADC counts to Volts; Vref/1024
+const float kVmax = 3.0;                    // Maximum capacitor voltage
+const uint16_t kDischargeTime = 1000;       // Discharge for a total of [ms]
+const uint16_t kSensorDelay = 1200;         // time to wait before measuring sensor volts; [us]
+const uint16_t kSensorInterval = 1;         // Interval between measurements; [ms]
+const uint16_t kResultsArrayLength = 30;    // Number of measurements
+const uint16_t kMaxChargeCycles = 10000;    // Max number of charging cycles before giving up
+const uint16_t kDischargeCycleDelay = 100;  // Wait for [ms] after a measurement cycle
+const uint16_t kTransientDelay = 10;        // Amount of [ms] to wait for transients to subside
+const uint16_t kChargingInterval = 10000;   // Charge for [ms] before measuring voltage
 
-#define sensorArrayLength 30
-
-#define max_charge_cycles 10000
-
-#define discharge_cycles 0
-
-#define discharge_cycle_delay 100  // ms
-
-// variables will change:
-int pbState = 0;  // variable for reading the pushbutton status
-
-int L1_ON = 1;  // chooses L1 on, not L2
+bool coil1_active = true;                   // Specifies which coil should be used for discharge
 
 void setup() {
     Serial.begin(9600);
-    pinMode(pb_d8, INPUT);
-    pinMode(charge_d2, OUTPUT);
-    pinMode(discharge_d4, OUTPUT);
+    pinMode(kPinChargeDischarge, OUTPUT);
+    pinMode(kPinCoilSwitch, OUTPUT);
+    pinMode(kPinCapacitor, INPUT);
+    pinMode(kPinSensingCoil, INPUT);
     // analogReference(EXTERNAL);  // reference is 3.3V
 }
 
 void loop() {
+    ChargeCapacitor(kVmax, kChargingInterval);
+    float* results = Measure(coil1_active, kSensorDelay, kSensorInterval, kDischargeTime);
+    // WriteResultsToSD(results);
+    delay(kDischargeCycleDelay);
+    delete[] results;
+    coil1_active = !coil1_active;
+}
+
+/**
+ * Charge capacitor until it exceeds vmin
+ *
+ * @param vmin Capacitor must exceed this voltage to stop charging.
+ * @param interval Charge capacitor for [ms] before measuring again.
+ * @return float Final capacitor voltage.
+ */
+float ChargeCapacitor(const float vmin, const unsigned int interval) {
     float cap_volts = 0;
-    float sensor_volts = 0;
-    int capcounts = 0;
-    int tstart = 0;
-    int tcheck = 0;
-    float sensorArray[sensorArrayLength];
-    cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
-    Serial.print("analog read speed check 10,000 times\n");
-    tstart = millis();
-    for (int i = 0; i < 10; i++) {
-        capcounts = analogRead(capacitor_voltage_a7);
-        delayMicroseconds(1);
-    }
-    tcheck = millis() - tstart;
-    Serial.print("analog read speed check complete for 1 msecs = ");
-    Serial.print(tcheck);
-    Serial.print("\n");
-    for (int i = 0; i < max_charge_cycles; i++) {
-        // terminate charging at vmax
-        Serial.print(i);
-        if (cap_volts < vmax) {
-            digitalWrite(charge_d2, HIGH);  // turn on d2  to charge:
-            delay(100);                     // let transient subside
-        }
-        cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
-        Serial.print(" cap_volts ");
+    Serial.print("Charging capacitor\n");
+    for (uint16_t i = 0; i < kMaxChargeCycles; i++) {
+        digitalWrite(kPinChargeDischarge, HIGH);
+        delay(kTransientDelay);
+        cap_volts = analogRead(kPinCapacitor) * kCountsToVolts;
+        digitalWrite(kPinChargeDischarge, LOW);
+
         Serial.print(cap_volts);
-        delay(50);
-        digitalWrite(charge_d2, LOW);
-        delay(10);  // let transient subside
-        Serial.print("  ");
-        cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
-        Serial.print(cap_volts);
-        Serial.print("\n");
+        Serial.print(" V\n");
 
-        pbState = digitalRead(pb_d8);
-        if (pbState == HIGH) {
-            Serial.print("pb pressed - skipping to discharge in 5s\n");
-            delay(5000);
-            break;
+        if (cap_volts > vmin) {
+            Serial.print("Capacitor charged\n");
+            return cap_volts;
         }
-        delay(10);
+
+        delay(interval);
     }
-    Serial.print("Discharging..\n");
-    delay(5000);
-    for (int i = 0; i < discharge_cycles; i++) {
-        // see if we need to skip out
-        pbState = digitalRead(pb_d8);
-        if (pbState == HIGH) {
-            Serial.print("pb pressed - exit\n");
-            exit(0);
-        }
-        // choose the coil to power
-        if (L1_ON == 1) {
-            digitalWrite(L1_ON_d6, HIGH);
-            Serial.print("L1 ");
-        } else {
-            Serial.print("L2 ");
-        }
-
-        delay(10);  // to give relay K3-K4-d6 time to turn on
-
-        digitalWrite(discharge_d4, HIGH);
-        delayMicroseconds(sensor_time_delay_us);
-        // read the voltages into sensor array
-        tstart = millis();
-        for (int j = 0; j < sensorArrayLength; j++) {
-            sensor_volts = analogRead(sensor_voltage_a5) * counts_to_volts;
-            sensorArray[j] = sensor_volts;
-            delayMicroseconds(sensor_interval_us);
-        }
-        tcheck = millis() - tstart;
-        // finish up the discharge
-        delay(discharge_time_ms - tcheck);
-        digitalWrite(discharge_d4, LOW);
-        digitalWrite(L1_ON_d6, LOW);  // always turn off d6 to reduce current (56mA)
-
-        for (int j = 0; j < sensorArrayLength; j++) {
-            Serial.print(sensorArray[j]);
-            Serial.print(" ");
-        }
-        Serial.print("\n");
-
-        delay(discharge_cycle_delay);
-        // switch coils
-        if (L1_ON == 1)
-            L1_ON = 1;  // always turn on L1
-        else
-            L1_ON = 1;
-    }
-
-    Serial.print("sensor read time in msecs ");
-    Serial.print(tcheck);
-    Serial.print("\ncap_volts ");
-    cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
+    Serial.print("kMaxChargeCycles reached! Aborting charging at ");
     Serial.print(cap_volts);
+    Serial.print(" V.");
+    return cap_volts;
+}
+
+/**
+ * Discharge capacitor into a coil and measure voltage on sensing coil
+ *
+ * @param coil1_active Whether to energize coil 1.
+ * @param initial_delay Wait for [us] before starting measurements.
+ * @param interval Interval [us] between measurements.
+ * @param total_time Total discharge time.
+ * @return float* An array of the measured voltages.
+ */
+float* Measure(const bool coil1_active, const unsigned int initial_delay,
+               const unsigned int interval, const unsigned int total_time) {
+    float* results = new float[kResultsArrayLength];
+
+    Serial.print("Preparing to measure\n");
+    if (coil1_active == 1) {
+        Serial.print("Coil 1 energized\n");
+    } else {
+        digitalWrite(kPinCoilSwitch, HIGH);
+        Serial.print("Coil 2 energized\n");
+    }
+    delay(kTransientDelay);
+
+    Serial.print("Discharging capacitor\n");
+    digitalWrite(kPinChargeDischarge, HIGH);
+    delayMicroseconds(initial_delay);
+
+    unsigned long tstart = millis();
+    for (uint16_t j = 0; j < kResultsArrayLength; j++) {
+        float sensor_volts = analogRead(kPinSensingCoil) * kCountsToVolts;
+        results[j] = sensor_volts;
+        delayMicroseconds(interval);
+    }
+    unsigned long tcheck = millis() - tstart;
+
+    Serial.print("Measurement finished, discharging up to specified time\n");
+    // finish up the discharge (to make sure all the ferrofluid is on one side?)
+    delay(kDischargeTime - tcheck);
+    digitalWrite(kPinChargeDischarge, LOW);
+    digitalWrite(kPinCoilSwitch, LOW);  // always turn off relays to reduce current (56mA)
+
+    Serial.print("Results: ");
+    for (uint16_t j = 0; j < kResultsArrayLength; j++) {
+        Serial.print(results[j]);
+        Serial.print(" ");
+    }
     Serial.print("\n");
-    Serial.print("Done\n");
-    delay(1000);  // give the serial thread time to finish  output
-    exit(0);
+
+    return results;
 }
