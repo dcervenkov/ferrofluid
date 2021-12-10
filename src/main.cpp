@@ -1,12 +1,10 @@
 #include <Arduino.h>
 #include <SD.h>
 
-// File myFile;
-// constants won't change. They're used here to set pin numbers:
 const int charge_d2 = 2;               // capacitor charge on/off
 const int discharge_d4 = 4;            // capacitor discharge on/off
 const int L1_ON_d6 = 6;                // L1 on/L2 off on/off
-const int capacitor_voltage_a7 = 7;    // capacitor voltage measured at gpio a7
+const int capacitor_voltage_a7 = A7;    // capacitor voltage measured at gpio a7
 const int sensor_voltage_a5 = 5;       // sensor voltage aplified by 7
 const int pb_d8 = 8;                   // skip switch
 const float counts_to_volts = 0.0032;  // 0.00459; ADC Vref 3.3V
@@ -31,24 +29,10 @@ int L1_ON = 1;  // chooses L1 on, not L2
 
 void setup() {
     Serial.begin(9600);
-    // Serial.print("Initializing SD card...");
-    // Note that even if it's not used as the CS pin, the hardware SS pin
-    // (10 on most Arduino boards, 53 on the Mega) must be left as an output
-    // or the SD library functions will not work.
-    // pinMode(10, OUTPUT);
-    // if (!SD.begin(10)) {
-    //  Serial.println("initialization failed!");
-    //  exit(1);
-    //}
-    // Serial.println("SD initialization done.");
-    // open the file. note that only one file can be open at a time,
-    // so you have to close this one before opening another.
-    // myFile = SD.open("ferro.txt", FILE_WRITE);
     pinMode(pb_d8, INPUT);
-    // initialize the pin as an output:
     pinMode(charge_d2, OUTPUT);
     pinMode(discharge_d4, OUTPUT);
-    analogReference(EXTERNAL);  // reference is 3.3V
+    // analogReference(EXTERNAL);  // reference is 3.3V
 }
 
 void loop() {
@@ -79,14 +63,13 @@ void loop() {
         cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
         Serial.print(" cap_volts ");
         Serial.print(cap_volts);
-        delay(1000);
+        delay(50);
         digitalWrite(charge_d2, LOW);
-        delay(100);  // let transient subside
+        delay(10);  // let transient subside
         Serial.print("  ");
         cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
         Serial.print(cap_volts);
         Serial.print("\n");
-        // myFile.println(cap_volts);
 
         pbState = digitalRead(pb_d8);
         if (pbState == HIGH) {
@@ -94,17 +77,15 @@ void loop() {
             delay(5000);
             break;
         }
-        delay(1000);
+        delay(10);
     }
     Serial.print("Discharging..\n");
-    // myFile.println("Discharging..\n");
     delay(5000);
     for (int i = 0; i < discharge_cycles; i++) {
         // see if we need to skip out
         pbState = digitalRead(pb_d8);
         if (pbState == HIGH) {
             Serial.print("pb pressed - exit\n");
-            // myFile.close();
             exit(0);
         }
         // choose the coil to power
@@ -151,7 +132,6 @@ void loop() {
     Serial.print("\ncap_volts ");
     cap_volts = analogRead(capacitor_voltage_a7) * counts_to_volts;
     Serial.print(cap_volts);
-    // myFile.println(cap_volts);
     Serial.print("\n");
     Serial.print("Done\n");
     delay(1000);  // give the serial thread time to finish  output
