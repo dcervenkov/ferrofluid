@@ -4,22 +4,22 @@
 #include <SD.h>
 
 // Pins
+const uint8_t kPinCapacitor = A7;           // Pin measuring capacitor voltage
 const uint8_t kPinChargeDischarge = 2;      // Pin controlling relay connecting Cap to battery or coils
 const uint8_t kPinCoilSwitch = 6;           // Pin controlling relay connecting coil 1 or 2
-const uint8_t kPinCapacitor = A7;           // Pin measuring capacitor voltage
 const uint8_t kPinSensingCoil = A5;         // Pin measuring sensing coil voltage
 
 // Settings
 const float kCountsToVolts = 0.0032;        // Constant for translating ADC counts to Volts; Vref/1024
 const float kVmax = 3.0;                    // Maximum capacitor voltage
+const uint16_t kChargingInterval = 10000;   // Charge for [ms] before measuring voltage
+const uint16_t kDischargeCycleDelay = 100;  // Wait for [ms] after a measurement cycle
 const uint16_t kDischargeTime = 1000;       // Discharge for a total of [ms]
+const uint16_t kMaxChargeCycles = 10000;    // Max number of charging cycles before giving up
+const uint16_t kResultsArrayLength = 30;    // Number of measurements
 const uint16_t kSensorDelay = 1200;         // time to wait before measuring sensor volts; [us]
 const uint16_t kSensorInterval = 1;         // Interval between measurements; [ms]
-const uint16_t kResultsArrayLength = 30;    // Number of measurements
-const uint16_t kMaxChargeCycles = 10000;    // Max number of charging cycles before giving up
-const uint16_t kDischargeCycleDelay = 100;  // Wait for [ms] after a measurement cycle
 const uint16_t kTransientDelay = 10;        // Amount of [ms] to wait for transients to subside
-const uint16_t kChargingInterval = 10000;   // Charge for [ms] before measuring voltage
 
 bool coil1_active = true;                   // Specifies which coil should be used for discharge
 
@@ -57,11 +57,16 @@ float ChargeCapacitor(const float vmin, const unsigned int interval) {
         cap_volts = analogRead(kPinCapacitor) * kCountsToVolts;
         digitalWrite(kPinChargeDischarge, LOW);
 
+        Serial.print("Cycle ");
+        Serial.print(i);
+        Serial.print(": ");
         Serial.print(cap_volts);
         Serial.print(" V\n");
 
         if (cap_volts > vmin) {
-            Serial.print("Capacitor charged\n");
+            Serial.print("Capacitor charged; final voltage: ");
+            Serial.print(cap_volts);
+            Serial.print(" V\n");
             return cap_volts;
         }
 
@@ -69,7 +74,7 @@ float ChargeCapacitor(const float vmin, const unsigned int interval) {
     }
     Serial.print("kMaxChargeCycles reached! Aborting charging at ");
     Serial.print(cap_volts);
-    Serial.print(" V.");
+    Serial.print(" V");
     return cap_volts;
 }
 
@@ -88,10 +93,10 @@ float* Measure(const bool coil1_active, const unsigned int initial_delay,
 
     Serial.print("Preparing to measure\n");
     if (coil1_active == 1) {
-        Serial.print("Coil 1 energized\n");
+        Serial.print("Coil 1 selected\n");
     } else {
         digitalWrite(kPinCoilSwitch, HIGH);
-        Serial.print("Coil 2 energized\n");
+        Serial.print("Coil 2 selected\n");
     }
     delay(kTransientDelay);
 
@@ -101,8 +106,7 @@ float* Measure(const bool coil1_active, const unsigned int initial_delay,
 
     unsigned long tstart = millis();
     for (uint16_t j = 0; j < kResultsArrayLength; j++) {
-        float sensor_volts = analogRead(kPinSensingCoil) * kCountsToVolts;
-        results[j] = sensor_volts;
+        results[j] = analogRead(kPinSensingCoil) * kCountsToVolts;
         delayMicroseconds(interval);
     }
     unsigned long tcheck = millis() - tstart;
@@ -115,7 +119,7 @@ float* Measure(const bool coil1_active, const unsigned int initial_delay,
 
     Serial.print("Results: ");
     for (uint16_t j = 0; j < kResultsArrayLength; j++) {
-        Serial.print(results[j]);
+        Serial.print(results[j], 4);
         Serial.print(" ");
     }
     Serial.print("\n");
