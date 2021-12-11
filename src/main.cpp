@@ -8,6 +8,7 @@ const uint8_t kPinCapacitor = A7;           // Pin measuring capacitor voltage
 const uint8_t kPinChargeDischarge = 2;      // Pin controlling relay connecting Cap to battery or coils
 const uint8_t kPinCoilSwitch = 6;           // Pin controlling relay connecting coil 1 or 2
 const uint8_t kPinSensingCoil = A5;         // Pin measuring sensing coil voltage
+const uint8_t kPinSkipSwitch = 9;           // Pin to skip charging
 
 // Settings
 const float kCountsToVolts = 0.0032;        // Constant for translating ADC counts to Volts; Vref/1024
@@ -29,6 +30,7 @@ void setup() {
     pinMode(kPinCoilSwitch, OUTPUT);
     pinMode(kPinCapacitor, INPUT);
     pinMode(kPinSensingCoil, INPUT);
+    pinMode(kPinSkipSwitch, INPUT);
     // analogReference(EXTERNAL);  // reference is 3.3V
 }
 
@@ -62,6 +64,13 @@ float ChargeCapacitor(const float vmin, const unsigned int interval) {
         Serial.print(": ");
         Serial.print(cap_volts);
         Serial.print(" V\n");
+
+        if (digitalRead(kPinSkipSwitch)) {
+            Serial.print("Skip switch active; skipping charging at ");
+            Serial.print(cap_volts);
+            Serial.print(" V\n");
+            return cap_volts;
+        }
 
         if (cap_volts > vmin) {
             Serial.print("Capacitor charged; final voltage: ");
