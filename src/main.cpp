@@ -13,7 +13,7 @@ const uint8_t kPinSkipSwitch = 9;           // Pin to skip charging
 // Settings
 const float kCountsToVolts = 0.00488;        // Constant for translating ADC counts to Volts; Vref/1024
 const float kVmax = 2.3;                    // Maximum capacitor voltage
-const uint16_t kChargingInterval = 10000;   // Charge for [ms] before measuring voltage
+const uint16_t kChargingInterval = 5000;   // Charge for [ms] before measuring voltage
 const uint16_t kDischargeCycleDelay = 100;  // Wait for [ms] after a measurement cycle
 const uint16_t kDischargeTime = 1000;       // Discharge for a total of [ms]
 const uint16_t kMaxChargeCycles = 10000;    // Max number of charging cycles before giving up
@@ -54,10 +54,7 @@ float ChargeCapacitor(const float vmin, const unsigned int interval) {
     float cap_volts = 0;
     Serial.print("Charging capacitor\n");
     for (uint16_t i = 0; i < kMaxChargeCycles; i++) {
-        digitalWrite(kPinChargeDischarge, HIGH);
-        delay(kTransientDelay);
         cap_volts = analogRead(kPinCapacitor) * kCountsToVolts;
-        digitalWrite(kPinChargeDischarge, LOW);
 
         Serial.print("Cycle ");
         Serial.print(i);
