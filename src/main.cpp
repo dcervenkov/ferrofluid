@@ -11,8 +11,8 @@ const uint8_t kPinSensingCoil = A5;         // Pin measuring sensing coil voltag
 const uint8_t kPinSkipSwitch = 9;           // Pin to skip charging
 
 // Settings
-const float kCountsToVolts = 0.0032;        // Constant for translating ADC counts to Volts; Vref/1024
-const float kVmax = 3.0;                    // Maximum capacitor voltage
+const float kCountsToVolts = 0.00488;        // Constant for translating ADC counts to Volts; Vref/1024
+const float kVmax = 2.3;                    // Maximum capacitor voltage
 const uint16_t kChargingInterval = 10000;   // Charge for [ms] before measuring voltage
 const uint16_t kDischargeCycleDelay = 100;  // Wait for [ms] after a measurement cycle
 const uint16_t kDischargeTime = 1000;       // Discharge for a total of [ms]
