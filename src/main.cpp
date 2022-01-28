@@ -11,9 +11,9 @@ const uint8_t kPinSensingCoil = A5;         // Pin measuring sensing coil voltag
 const uint8_t kPinSkipSwitch = 9;           // Pin to skip charging
 
 // Settings
-const float kCountsToVolts = 0.00488;        // Constant for translating ADC counts to Volts; Vref/1024
+const float kCountsToVolts = 0.00488;       // Constant for translating ADC counts to Volts; Vref/1024
 const float kVmax = 2.3;                    // Maximum capacitor voltage
-const uint16_t kChargingInterval = 5000;   // Charge for [ms] before measuring voltage
+const uint16_t kChargingInterval = 5000;    // Charge for [ms] before measuring voltage
 const uint16_t kDischargeCycleDelay = 100;  // Wait for [ms] after a measurement cycle
 const uint16_t kDischargeTime = 1000;       // Discharge for a total of [ms]
 const uint16_t kMaxChargeCycles = 10000;    // Max number of charging cycles before giving up
@@ -22,10 +22,31 @@ const uint16_t kSensorDelay = 1200;         // time to wait before measuring sen
 const uint16_t kSensorInterval = 1;         // Interval between measurements; [ms]
 const uint16_t kTransientDelay = 10;        // Amount of [ms] to wait for transients to subside
 
+// change this to match your SD shield or module;
+//     Arduino Ethernet shield: pin 4
+//     Adafruit SD shields and modules: pin 10
+//     Sparkfun SD shield: pin 8
+const uint8_t chipSelect = 10;
+
 bool coil1_active = true;                   // Specifies which coil should be used for discharge
+File dataFile;
 
 void setup() {
     Serial.begin(9600);
+
+    Serial.print("Initializing SD card...\n");
+    // make sure that the default chip select pin is set to
+    // output, even if you don't use it:
+    pinMode(SS, OUTPUT);
+
+    // see if the card is present and can be initialized:
+    if (!SD.begin(chipSelect)) {
+        Serial.println("Card failed, or not present");
+        // don't do anything more:
+        return;
+    }
+    Serial.println("Card initialized");
+
     pinMode(kPinChargeDischarge, OUTPUT);
     pinMode(kPinCoilSwitch, OUTPUT);
     pinMode(kPinCapacitor, INPUT);
@@ -129,6 +150,22 @@ float* Measure(const bool coil1_active, const unsigned int initial_delay,
         Serial.print(" ");
     }
     Serial.print("\n");
+
+    File dataFile = SD.open("data.csv", FILE_WRITE);
+    if (dataFile) {
+        dataFile.print(millis());
+        for (uint16_t j = 0; j < kResultsArrayLength; j++) {
+            dataFile.print(results[j], 4);
+            if (j < kResultsArrayLength - 1) {
+                dataFile.print(",");
+            }
+        }
+        dataFile.print("\n");
+        dataFile.close();
+        Serial.print("Data written to SD card.\n");
+    } else {
+        Serial.print("Error opening file!\n");
+    }
 
     return results;
 }
