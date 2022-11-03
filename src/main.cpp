@@ -33,21 +33,28 @@ File dataFile;
 void setup() {
     Serial.begin(9600);
 
-    Serial.print("Initializing SD card...\n");
     // make sure that the default chip select pin is set to
     // output, even if you don't use it:
     pinMode(SS, OUTPUT);
-
-    // see if the card is present and can be initialized:
-    if (!SD.begin(chipSelect)) {
-        Serial.println("Card failed, or not present");
-    }
-    Serial.println("Card initialized");
 
     pinMode(kPinChargeDischarge, OUTPUT);
     pinMode(kPinCoilSwitch, OUTPUT);
     pinMode(kPinCapacitor, INPUT);
     pinMode(kPinSensingCoil, INPUT);
+
+    // see if the card is present and can be initialized:
+    // if (!SD.begin(chipSelect)) {
+    //     Serial.println("Card failed, or not present");
+    // }
+
+    Serial.print("Initializing SD card");
+    while (!SD.begin(chipSelect)) {
+        Serial.print(".");
+        delay(1000);
+    }
+    Serial.println("");
+    Serial.println("Card initialized");
+
 }
 
 void loop() {
