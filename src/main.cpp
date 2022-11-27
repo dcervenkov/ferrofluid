@@ -18,7 +18,7 @@ const uint16_t kDischargeTime = 1000;       // Discharge for a total of [ms]
 const uint16_t kMaxChargeCycles = 10000;    // Max number of charging cycles before giving up
 const uint16_t kResultsArrayLength = 30;    // Number of measurements
 const uint16_t kSensorDelay = 1200;         // time to wait before measuring sensor volts; [us]
-const uint16_t kSensorInterval = 1;         // Interval between measurements; [us]
+const uint16_t kSensorInterval = 500;       // Interval between measurements; [us]
 const uint16_t kTransientDelay = 10;        // Amount of [ms] to wait for transients to subside
 
 // change this to match your SD shield or module;
@@ -60,7 +60,6 @@ void setup() {
 void loop() {
     ChargeCapacitor(kVmax, kChargingInterval);
     float* results = Measure(coil1_active, kSensorDelay, kSensorInterval, kDischargeTime);
-    // WriteResultsToSD(results);
     delay(kDischargeCycleDelay);
     delete[] results;
     coil1_active = !coil1_active;
